@@ -6,6 +6,9 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { cache } from "react";
 import superjson from "superjson";
 
+import { ratelimit } from "@/lib/ratelimit";
+
+
 export const createTRPCContext = cache(async () => {
   const { userId } = await auth();
   return { clerkUserId: userId };
@@ -44,6 +47,11 @@ export const protectedProcedure = t.procedure.use(async function isAuthed(
 
   if (!user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Unauthorized" });
+  }
+
+  const { success } = await ratelimit.limit(user.id);
+  if(!success) { 
+    throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Rate limit exceeded" });
   }
 
   return opts.next({
